@@ -27,13 +27,17 @@ class ExchangeDataClient:
         ohlcv = self.client.fetch_ohlcv(s, timeframe=timeframe, limit=limit, since=since)
         bars: List[Bar] = []
         for t, o, h, l, c, v in ohlcv:
-            ts = dt.datetime.utcfromtimestamp(t / 1000.0)
+            ts = dt.datetime.fromtimestamp(t / 1000.0, tz=dt.timezone.utc)
             bars.append(Bar(ts=ts, open=float(o), high=float(h), low=float(l), close=float(c), volume=float(v)))
         return bars
 
     async def stream_klines(self, symbol: str, interval: str = "1m"):
+        if self.exchange_id != "binance":
+            raise NotImplementedError(f"Streaming not implemented for {self.exchange_id}")
+
         import websockets
-        sym = symbol.lower()
+        # Binance stream expects lowercase symbol without slash (e.g. btcusdt)
+        sym = symbol.lower().replace("/", "")
         url = f"wss://stream.binance.com:9443/ws/{sym}@kline_{interval}"
         async with websockets.connect(url) as ws:
             async for msg in ws:
@@ -42,7 +46,7 @@ class ExchangeDataClient:
                 if not k:
                     continue
                 if k.get("x"):
-                    ts = dt.datetime.utcfromtimestamp(k.get("T") / 1000.0)
+                    ts = dt.datetime.fromtimestamp(k.get("T") / 1000.0, tz=dt.timezone.utc)
                     yield Bar(
                         ts=ts,
                         open=float(k.get("o")),

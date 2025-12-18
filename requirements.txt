@@ -1,0 +1,4 @@
+ccxt
+websockets
+psycopg[binary]
+python-dotenv
