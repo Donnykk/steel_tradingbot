@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SteelTrade Monitor</title>
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1e222d;
+            color: #d1d4dc;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            background: #2a2e39;
+            color: white;
+            border: 1px solid #363a45;
+        }
+
+        #chart {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h2>SteelTrade Monitor</h2>
+        <select id="symbol-select">
+            <option value="" disabled selected>Select Symbol</option>
+        </select>
+        <input list="intervals" id="interval-input" placeholder="e.g., 1s, 5s, 13s, 1m, 5m, 2h" style="padding:8px; border-radius:4px; background:#2a2e39; color:white; border:1px solid #363a45;" />
+        <datalist id="intervals">
+            <option value="1s"></option>
+            <option value="5s"></option>
+            <option value="15s"></option>
+            <option value="30s"></option>
+            <option value="1m"></option>
+            <option value="3m"></option>
+            <option value="5m"></option>
+            <option value="15m"></option>
+            <option value="30m"></option>
+            <option value="1h"></option>
+            <option value="2h"></option>
+            <option value="4h"></option>
+            <option value="6h"></option>
+            <option value="12h"></option>
+            <option value="1d"></option>
+        </datalist>
+        <button onclick="loadData()" style="padding: 8px 16px; cursor: pointer;">Refresh</button>
+    </div>
+    <div id="chart"></div>
+
+    <script>
+        const chartProperties = {
+            width: document.getElementById('chart').clientWidth,
+            height: 600,
+            timeScale: {
+                timeVisible: true,
+                secondsVisible: false,
+            },
+            layout: {
+                background: { type: 'solid', color: '#1e222d' },
+                textColor: '#d1d4dc',
+            },
+            grid: {
+                vertLines: { color: '#404040' },
+                horzLines: { color: '#404040' },
+            },
+        };
+
+        const domElement = document.getElementById('chart');
+        const chart = LightweightCharts.createChart(domElement, chartProperties);
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+        });
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            chart.applyOptions({ width: document.getElementById('chart').clientWidth });
+        });
+
+        function updateTimeScale(intervalStr) {
+            try {
+                const match = intervalStr.match(/^(\d+)([smhd])$/);
+                const unit = match ? match[2] : 'm';
+                const value = match ? parseInt(match[1], 10) : 1;
+                const seconds = unit === 's' ? value : unit === 'm' ? value * 60 : unit === 'h' ? value * 3600 : value * 86400;
+                chart.applyOptions({
+                    timeScale: {
+                        timeVisible: true,
+                        secondsVisible: seconds < 60,
+                    }
+                });
+            } catch (_) {}
+        }
+
+        // Load Symbols
+        async function loadSymbols() {
+            try {
+                const response = await fetch('/api/symbols');
+                const data = await response.json();
+                const select = document.getElementById('symbol-select');
+                
+                data.symbols.forEach(sym => {
+                    const option = document.createElement('option');
+                    option.value = sym;
+                    option.text = sym;
+                    select.appendChild(option);
+                });
+
+                if (data.symbols.length > 0) {
+                    select.value = data.symbols[0];
+                    const intervalInput = document.getElementById('interval-input');
+                    intervalInput.value = '1m';
+                    updateTimeScale(intervalInput.value);
+                    loadData();
+                }
+
+                select.addEventListener('change', () => {
+                    updateTimeScale(document.getElementById('interval-input').value || '1m');
+                    loadData();
+                });
+                document.getElementById('interval-input').addEventListener('change', () => {
+                    updateTimeScale(document.getElementById('interval-input').value || '1m');
+                    loadData();
+                });
+            } catch (err) {
+                console.error("Failed to load symbols", err);
+            }
+        }
+
+        // Load Data
+        async function loadData() {
+            const symbol = document.getElementById('symbol-select').value;
+            const interval = document.getElementById('interval-input').value || '1m';
+            if (!symbol) return;
+
+            const encodedSymbol = encodeURIComponent(symbol);
+            
+            try {
+                const response = await fetch(`/api/history/${encodedSymbol}?interval=${interval}&limit=1000`);
+                const result = await response.json();
+                
+                if (result.data) {
+                    candleSeries.setData(result.data);
+                    updateTimeScale(interval);
+                    chart.timeScale().fitContent();
+                }
+            } catch (err) {
+                console.error("Failed to load history", err);
+            }
+        }
+
+        loadSymbols();
+        setInterval(loadData, 1000);
+    </script>
+</body>
+
+</html>

@@ -75,3 +75,31 @@ def write_bars(db_url: str, exchange: str, symbol: str, interval: str, bars: Lis
         conn.commit()
     return len(rows)
 
+def load_bars(db_url: str, exchange: str, symbol: str, interval: str, start_ts: int = 0, end_ts: int = 2**63 - 1) -> List[Bar]:
+    import psycopg
+    import datetime as dt
+    
+    query = """
+        SELECT ts, open, high, low, close, volume 
+        FROM ohlcv_bars 
+        WHERE exchange = %s AND symbol = %s AND interval = %s AND ts >= %s AND ts <= %s
+        ORDER BY ts ASC
+    """
+    
+    bars = []
+    with psycopg.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (exchange, symbol, interval, start_ts, end_ts))
+            rows = cur.fetchall()
+            for row in rows:
+                ts_ms, o, h, l, c, v = row
+                bars.append(Bar(
+                    ts=dt.datetime.fromtimestamp(ts_ms / 1000.0),
+                    open=o,
+                    high=h,
+                    low=l,
+                    close=c,
+                    volume=v
+                ))
+    return bars
+

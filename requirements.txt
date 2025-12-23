@@ -2,3 +2,7 @@ ccxt
 websockets
 psycopg[binary]
 python-dotenv
+fastapi
+uvicorn
+jinja2
+okx
