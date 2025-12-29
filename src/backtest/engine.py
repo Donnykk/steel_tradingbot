@@ -51,11 +51,21 @@ class BacktestEngine:
             if ord and self.risk.approve(ord, self.position, self.account_state):
                 fill = self.matcher.match(ord, bar)
                 if fill:
-                    prev = self.position.realized_pnl
+                    prev_qty = self.position.qty
+                    prev_pnl = self.position.realized_pnl
                     self._apply_fill(fill)
-                    delta = self.position.realized_pnl - prev
-                    if delta != 0.0:
-                        self.trade_pnls.append(delta)
+                    delta = self.position.realized_pnl - prev_pnl
+                         
+                    # Determine if this was a closing/reducing trade
+                    # Opening: prev_qty == 0
+                    # Increasing: signs match
+                    is_opening = (prev_qty == 0)
+                    is_increasing = (prev_qty > 0 and fill.qty > 0) or (prev_qty < 0 and fill.qty < 0)
+                    
+                    if not (is_opening or is_increasing):
+                        if delta != 0.0:
+                            self.trade_pnls.append(delta)
+   
                     self.fills.append(fill)
                     self.strategy.on_fill(fill)
             eq = self.position.realized_pnl + self.position.qty * (bar.close - self.position.avg_price)
@@ -63,7 +73,7 @@ class BacktestEngine:
         return self.equity_series
 
     def _apply_fill(self, fill: Fill) -> None:
-        self.position.realized_pnl -= fill.fee
+        self.position.realized_pnl -= fill.fee  
         q = self.position.qty
         p = self.position.avg_price
         fq = fill.qty

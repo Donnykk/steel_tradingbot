@@ -8,6 +8,7 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+import math
 import datetime as dt
 from typing import List
 
@@ -26,15 +27,23 @@ def generate_dummy_data() -> List[Bar]:
     base_price = 10000.0
     for i in range(1000):
         ts = dt.datetime.now() - dt.timedelta(minutes=1000-i)
-        change = (i % 10 - 5) + (0.5 if i % 20 > 10 else -0.5)
-        base_price += change
+        
+        # Create a trend + wave pattern
+        # Trend: +0.2 per bar
+        # Wave: Amplitude 100, Period ~50 bars
+        trend = i * 0.2
+        wave = math.sin(i / 10.0) * 100.0
+        noise = (i % 5 - 2) * 2.0
+        
+        price = 10000.0 + trend + wave + noise
+        
         bars.append(Bar(
             ts=ts,
-            open=base_price,
-            high=base_price + 5,
-            low=base_price - 5,
-            close=base_price + change,
-            volume=100.0
+            open=price,
+            high=price + 5,
+            low=price - 5,
+            close=price,
+            volume=100.0 + abs(wave)
         ))
     return bars
 
